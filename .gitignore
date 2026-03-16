@@ -1,0 +1,13 @@
+# Terraform の一時ファイル
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# 機密情報 (万が一ローカルに置いた場合)
+*.json
+*.p12
+.env
+
+# OS 固有のファイル
+.DS_Store

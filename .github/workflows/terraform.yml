@@ -1,0 +1,170 @@
+name: Terraform
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "environments/**"
+      - "modules/**"
+  pull_request:
+    paths:
+      - "environments/**"
+      - "modules/**"
+
+jobs:
+  # どの環境に変更があったかを判定
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      prod: ${{ steps.filter.outputs.prod }}
+      stg: ${{ steps.filter.outputs.stg }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            prod:
+              - 'environments/prod/**'
+              - 'modules/**'
+            stg:
+              - 'environments/stg/**'
+              - 'modules/**'
+
+  # =============================================================
+  # prod 環境
+  # =============================================================
+  terraform-prod:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.prod == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # WIF に必要
+      pull-requests: write # plan 結果をコメントするために必要
+
+    defaults:
+      run:
+        working-directory: environments/prod
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.5"
+
+      # WIF 認証 (JSON キーファイル不要)
+      - name: Authenticate to Google Cloud (prod)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER_PROD }}
+          service_account: ${{ secrets.TF_SA_PROD }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive ../../
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: tflint
+        uses: terraform-linters/setup-tflint@v4
+        continue-on-error: true # tflint は推奨チェックのため非ブロック
+        with:
+          tflint_version: latest
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -out=tfplan
+
+      # PR にのみ plan 結果をコメントとして投稿
+      - name: Post Plan to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `#### Terraform Plan (prod) 📖
+            \`\`\`
+            ${{ steps.plan.outputs.stdout }}
+            \`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      # main へのマージ時のみ apply を実行
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve tfplan
+
+  # =============================================================
+  # stg 環境
+  # =============================================================
+  terraform-stg:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.stg == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+    defaults:
+      run:
+        working-directory: environments/stg
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.5"
+
+      - name: Authenticate to Google Cloud (stg)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER_STG }}
+          service_account: ${{ secrets.TF_SA_STG }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive ../../
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        # is_stg_active=false を明示的に渡す。
+        # DSが手動で composer-stg を作成中であっても CI/CD が誤って削除しないようにするため。
+        run: terraform plan -no-color -var="is_stg_active=false" -out=tfplan
+
+      - name: Post Plan to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `#### Terraform Plan (stg) 📖
+            \`\`\`
+            ${{ steps.plan.outputs.stdout }}
+            \`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve tfplan

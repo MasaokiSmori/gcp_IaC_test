@@ -1,0 +1,10 @@
+# dag-sync.yml
+# DAG の本番・stg 反映は VM (vm-prod / vm-stg) 上での手動操作で行うため、
+# 現在このワークフローは使用していません。
+# 将来的に自動同期が必要になった場合に備えて残しています。
+#
+# 手動デプロイ手順 (spec.md §7 を参照):
+#   stg: gcloud compute ssh vm-stg --tunnel-through-iap
+#        → git pull && bash deploy_dags.sh
+#   prod: gcloud compute ssh vm-prod --tunnel-through-iap
+#        → git pull && bash deploy_dags.sh
