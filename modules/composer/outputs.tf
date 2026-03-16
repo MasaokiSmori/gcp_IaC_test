@@ -3,6 +3,11 @@ output "dag_gcs_prefix" {
   value       = google_composer_environment.main.config[0].dag_gcs_prefix
 }
 
+output "dag_gcs_bucket" {
+  description = "Composer が管理する GCS バケット名 (バケットレベル IAM 用)"
+  value       = regex("gs://([^/]+)/", google_composer_environment.main.config[0].dag_gcs_prefix)[0]
+}
+
 output "airflow_uri" {
   description = "Airflow Web UI の URI"
   value       = google_composer_environment.main.config[0].airflow_uri

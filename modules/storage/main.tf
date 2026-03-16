@@ -6,10 +6,46 @@ resource "google_storage_bucket" "erp_ingest_raw" {
   uniform_bucket_level_access = true
   force_destroy               = false
 
-  # 生データ保持期間: 1年
+  # 誤上書き・誤削除からの復旧用
+  versioning {
+    enabled = true
+  }
+
+  # コスト最適化: 段階的にストレージクラスを遷移させてから削除
+  lifecycle_rule {
+    condition {
+      age = 30
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "NEARLINE"
+    }
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 90
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "COLDLINE"
+    }
+  }
+
   lifecycle_rule {
     condition {
       age = 365
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  # バージョニング有効時、古い世代のオブジェクトも自動削除
+  lifecycle_rule {
+    condition {
+      age                = 30
+      num_newer_versions = 3
     }
     action {
       type = "Delete"

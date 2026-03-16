@@ -35,23 +35,35 @@ resource "google_compute_instance" "bastion" {
     #!/bin/bash
     set -e
 
+    MARKER="/var/lib/vm-bastion-provisioned"
+
     # COMPOSER_ENV_NAME を /etc/environment に永続化
     # scripts/deploy_dags.sh がこの変数を参照して gcloud describe の対象を特定する
     grep -qxF 'COMPOSER_ENV_NAME=${var.composer_env_name}' /etc/environment \
       || echo 'COMPOSER_ENV_NAME=${var.composer_env_name}' >> /etc/environment
 
-    # git と Google Cloud SDK のインストール (冪等)
-    apt-get update -q
-    apt-get install -y git google-cloud-sdk gnupg software-properties-common
+    # 初回プロビジョニング済みならパッケージインストールをスキップ
+    if [ ! -f "$MARKER" ]; then
+      # git と Google Cloud SDK のインストール
+      apt-get update -q
+      apt-get install -y git google-cloud-sdk gnupg software-properties-common
 
-    # Terraform のインストール (冪等)
-    if ! command -v terraform &>/dev/null; then
+      # Terraform のインストール (バージョン固定 - CI/CD と合わせること)
       curl -fsSL https://apt.releases.hashicorp.com/gpg \
         | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
       echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
         https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
         > /etc/apt/sources.list.d/hashicorp.list
-      apt-get update -q && apt-get install -y terraform
+      apt-get update -q && apt-get install -y terraform=${var.terraform_version}-1
+
+      touch "$MARKER"
+    fi
+
+    # リポジトリの自動クローン (初回のみ)
+    REPO_DIR="/opt/repo"
+    if [ ! -d "$REPO_DIR/.git" ]; then
+      git clone ${var.github_repo_url} "$REPO_DIR"
+      chmod -R 775 "$REPO_DIR"
     fi
   EOT
 }

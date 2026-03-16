@@ -59,6 +59,18 @@ module "iam" {
 }
 
 # =============================================================
+# Monitoring (Composer 環境の健全性・DAG 失敗・スケジューラー監視)
+# NOTE: stg でも監視を有効化。composer-stg が存在しない場合、
+#       メトリクスが発生しないためアラートは発火しない。
+# =============================================================
+module "monitoring" {
+  source           = "../../modules/monitoring"
+  project_id       = var.project_id
+  env              = "stg"
+  workspace_domain = var.workspace_domain
+}
+
+# =============================================================
 # Cloud Composer 3 - stg (on-demand, count方式)
 #
 # is_stg_active = true  → composer-stg を作成
@@ -98,4 +110,51 @@ module "vm_stg" {
   subnet_id             = module.vpc.subnet_id
   service_account_email = module.iam.vm_bastion_sa_email
   composer_env_name     = "composer-stg"
+  github_repo_url       = var.github_repo_url
+}
+
+# =============================================================
+# バケットレベル IAM (最小権限: プロジェクトレベルではなくバケット単位で付与)
+# =============================================================
+
+# Composer SA → erp-ingest-raw バケット (DAG が生データを読み書き)
+resource "google_storage_bucket_iam_member" "composer_erp_ingest_raw" {
+  bucket = module.storage.erp_ingest_raw_bucket_name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${module.iam.composer_sa_email}"
+}
+
+# VM Bastion SA → Composer DAG バケット (deploy_dags.sh で DAG を同期)
+# NOTE: composer-stg は count 方式で存在しない場合があるため、
+#       Composer 存在時のみバインディングを作成する。
+resource "google_storage_bucket_iam_member" "vm_bastion_composer_dag_bucket" {
+  count  = var.is_stg_active ? 1 : 0
+  bucket = module.composer_stg[0].dag_gcs_bucket
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${module.iam.vm_bastion_sa_email}"
+}
+
+# =============================================================
+# データセットレベル BigQuery IAM
+# Composer SA にはプロジェクトレベルではなくデータセット単位で dataEditor を付与。
+# =============================================================
+resource "google_bigquery_dataset_iam_member" "composer_erp_raw_editor" {
+  project    = var.project_id
+  dataset_id = module.bigquery.erp_raw_dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${module.iam.composer_sa_email}"
+}
+
+resource "google_bigquery_dataset_iam_member" "composer_erp_stg_editor" {
+  project    = var.project_id
+  dataset_id = module.bigquery.erp_stg_dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${module.iam.composer_sa_email}"
+}
+
+resource "google_bigquery_dataset_iam_member" "composer_erp_mart_editor" {
+  project    = var.project_id
+  dataset_id = module.bigquery.erp_mart_dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${module.iam.composer_sa_email}"
 }

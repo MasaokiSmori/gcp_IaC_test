@@ -13,25 +13,16 @@ resource "google_service_account" "composer" {
   display_name = "Cloud Composer SA (${local.composer_sa_id})"
 }
 
-# GCS: 同一プロジェクト内のオブジェクト読み書き
-resource "google_project_iam_member" "composer_storage_admin" {
-  project = var.project_id
-  role    = "roles/storage.objectAdmin"
-  member  = "serviceAccount:${google_service_account.composer.email}"
-}
-
-# BigQuery: 同一プロジェクト内のデータ読み書き
-resource "google_project_iam_member" "composer_bq_editor" {
-  project = var.project_id
-  role    = "roles/bigquery.dataEditor"
-  member  = "serviceAccount:${google_service_account.composer.email}"
-}
-
+# BigQuery: ジョブ実行権限 (プロジェクトレベル - ジョブはデータセットに紐付かないため)
 resource "google_project_iam_member" "composer_bq_job_user" {
   project = var.project_id
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${google_service_account.composer.email}"
 }
+
+# NOTE: BigQuery データセットレベルの dataEditor と GCS バケットレベルの objectAdmin は
+#       environments/*/main.tf で個別バインディングとして設定する。
+#       プロジェクトレベルでの付与は権限過剰となるため廃止。
 
 # =============================================================
 # Service Account: GitHub Actions (Terraform デプロイ用)
@@ -42,10 +33,36 @@ resource "google_service_account" "github_actions" {
   display_name = "GitHub Actions Terraform SA (${var.env})"
 }
 
-# Terraform が各種リソースを操作するための Editor 権限
-resource "google_project_iam_member" "github_actions_editor" {
+# Terraform が各種リソースを操作するための権限 (最小権限の原則に基づき個別ロールを付与)
+# NOTE: roles/editor は過剰なため使用しない
+
+resource "google_project_iam_member" "github_actions_compute_admin" {
   project = var.project_id
-  role    = "roles/editor"
+  role    = "roles/compute.admin"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+resource "google_project_iam_member" "github_actions_composer_admin" {
+  project = var.project_id
+  role    = "roles/composer.admin"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+resource "google_project_iam_member" "github_actions_storage_admin" {
+  project = var.project_id
+  role    = "roles/storage.admin"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+resource "google_project_iam_member" "github_actions_bigquery_admin" {
+  project = var.project_id
+  role    = "roles/bigquery.admin"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+resource "google_project_iam_member" "github_actions_service_account_admin" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountAdmin"
   member  = "serviceAccount:${google_service_account.github_actions.email}"
 }
 
@@ -159,13 +176,16 @@ resource "google_service_account" "vm_bastion" {
   display_name = "VM Bastion SA (${var.env})"
 }
 
-# Composer の DAG バケットへの書き込みを許可 (プロジェクトレベルで付与)
-# NOTE: Composer の DAG バケット名は作成時にランダムな suffix が付くため、
-#       特定バケットへの絞り込みは Composer 作成後に手動または別フェーズで設定する。
-resource "google_project_iam_member" "vm_bastion_storage_admin" {
-  project = var.project_id
-  role    = "roles/storage.objectAdmin"
-  member  = "serviceAccount:${google_service_account.vm_bastion.email}"
+# NOTE: VM Bastion SA の GCS 権限はバケットレベルで付与する。
+#       Composer DAG バケットへの書き込み権限は environments/*/main.tf で
+#       Composer 作成後に google_storage_bucket_iam_member で設定する。
+
+# stg のみ: terraform state バケットへの読み書き (vm-stg 上での terraform apply 用)
+resource "google_storage_bucket_iam_member" "vm_bastion_terraform_state" {
+  count  = var.is_prod ? 0 : 1
+  bucket = "terraform-state-${var.env}"
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.vm_bastion.email}"
 }
 
 # IAP 経由の SSH 接続を許可

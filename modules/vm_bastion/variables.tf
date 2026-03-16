@@ -39,3 +39,14 @@ variable "machine_type" {
   type        = string
   default     = "e2-small"
 }
+
+variable "github_repo_url" {
+  description = "git clone に使用する GitHub リポジトリの HTTPS URL (例: https://github.com/org/repo.git)"
+  type        = string
+}
+
+variable "terraform_version" {
+  description = "VM にインストールする Terraform のバージョン (CI/CD と合わせること)"
+  type        = string
+  default     = "1.9.8"
+}

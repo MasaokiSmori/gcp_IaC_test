@@ -71,7 +71,7 @@ resource "google_access_context_manager_service_perimeter" "prod" {
     }
 
     # ----------------------------------------------------------
-    # Ingress: stg Composer SA → prod erp_raw BQ
+    # Ingress: stg Composer SA → prod erp_raw BQ (読み取りのみ)
     # stg の DAG が prod 生データを参照するユースケース
     # ----------------------------------------------------------
     ingress_policies {
@@ -82,17 +82,36 @@ resource "google_access_context_manager_service_perimeter" "prod" {
         resources = ["*"]
         operations {
           service_name = "bigquery.googleapis.com"
+          # 読み取りに必要なメソッドのみ許可 (テーブル作成・更新・削除は不可)
           method_selectors {
-            method = "*"
+            method = "google.cloud.bigquery.v2.JobService.InsertJob"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.JobService.GetJob"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.JobService.GetQueryResults"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.TableService.GetTable"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.TableService.ListTables"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.TableDataService.List"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.DatasetService.GetDataset"
           }
         }
       }
     }
 
     # ----------------------------------------------------------
-    # Egress: prod Composer → ERP プロジェクト BQ
+    # Egress: prod Composer → ERP プロジェクト BQ (読み取りのみ)
     # DAG がプル型で ERP データを直接取得する場合のみ使用。
-    # ERP への書き戻しは行わないため、bigquery 読み取りのみ許可。
+    # ERP への書き戻しは行わないため、bigquery 読み取りメソッドのみ許可。
     # ----------------------------------------------------------
     egress_policies {
       egress_from {
@@ -102,8 +121,27 @@ resource "google_access_context_manager_service_perimeter" "prod" {
         resources = ["projects/${var.erp_project_number}"]
         operations {
           service_name = "bigquery.googleapis.com"
+          # 読み取りに必要なメソッドのみ許可
           method_selectors {
-            method = "*"
+            method = "google.cloud.bigquery.v2.JobService.InsertJob"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.JobService.GetJob"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.JobService.GetQueryResults"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.TableService.GetTable"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.TableService.ListTables"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.TableDataService.List"
+          }
+          method_selectors {
+            method = "google.cloud.bigquery.v2.DatasetService.GetDataset"
           }
         }
       }
