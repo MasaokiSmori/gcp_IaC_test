@@ -34,3 +34,23 @@ variable "github_repo_url" {
   description = "git clone に使用する GitHub リポジトリの HTTPS URL (例: https://github.com/org/repo.git)"
   type        = string
 }
+
+variable "access_policy_id" {
+  description = "Access Context Manager ポリシー ID (数値のみ, 例: 1234567890)"
+  type        = string
+}
+
+variable "prod_project_number" {
+  description = "erp-dataplatform-prod のプロジェクト番号"
+  type        = string
+}
+
+variable "erp_project_number" {
+  description = "ERP ソースプロジェクトのプロジェクト番号"
+  type        = string
+}
+
+variable "erp_sa_email" {
+  description = "ERP プロジェクトで生データを prod GCS へアップロードする SA のメール"
+  type        = string
+}

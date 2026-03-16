@@ -90,6 +90,22 @@ module "vm_prod" {
 }
 
 # =============================================================
+# VPC Service Controls
+# prod を境界内に、ERP を境界外として ingress/egress を明示設定
+# =============================================================
+module "vpc_sc" {
+  source                 = "../../modules/vpc_sc"
+  access_policy_id       = var.access_policy_id
+  prod_project_number    = var.prod_project_number
+  erp_project_number     = var.erp_project_number
+  erp_sa_email           = var.erp_sa_email
+  prod_composer_sa_email = module.iam.composer_sa_email
+  stg_composer_sa_email  = "sa-composer-stg@erp-dataplatform-stg.iam.gserviceaccount.com"
+
+  depends_on = [module.iam]
+}
+
+# =============================================================
 # クロスプロジェクト IAM
 # stg の Composer SA に prod の erp_raw Dataset 読み取り権限を付与
 # (本番生データを stg へコピーするユースケース用)
