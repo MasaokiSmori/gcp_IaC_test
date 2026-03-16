@@ -10,9 +10,11 @@ resource "google_composer_environment" "main" {
 
       # DAG 内で os.environ.get("PROJECT_ID") 等で取得し、prod/stg を意識せず共通コードで動かす
       env_variables = {
-        "PROJECT_ID"      = var.project_id
-        "ERP_RAW_DATASET" = "erp_raw"
-        "ENV_TYPE"        = var.env # "prod" or "stg"
+        "PROJECT_ID"       = var.project_id
+        "ERP_RAW_DATASET"  = "erp_raw"
+        "ENV_TYPE"         = var.env # "prod" or "stg"
+        "DBT_PROFILES_DIR" = "/home/airflow/gcs/dags/dbt" # GCS上のprofiles.ymlを参照
+        "DBT_PROJECT_DIR"  = "/home/airflow/gcs/dags/dbt"
       }
 
       # PyPI パッケージ: DAG で BQ を扱うために必要な依存関係を一括管理
@@ -22,6 +24,8 @@ resource "google_composer_environment" "main" {
         "pandas-gbq"                    = ">=0.20.0"
         "google-cloud-bigquery-storage" = ">=2.24.0"
         "db-dtypes"                     = ">=1.1.1"
+        "dbt-bigquery"                  = ">=1.5.0" # BQ用dbtアダプター
+        "dbt-core"                      = ">=1.5.0"
       }
     }
 
