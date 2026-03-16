@@ -69,11 +69,14 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: tflint
+      - name: Setup tflint
         uses: terraform-linters/setup-tflint@v4
-        continue-on-error: true # tflint は推奨チェックのため非ブロック
         with:
           tflint_version: latest
+
+      - name: Run tflint
+        run: tflint --init && tflint --recursive
+        continue-on-error: true # tflint は推奨チェックのため非ブロック
 
       - name: Terraform Validate
         run: terraform validate

@@ -27,3 +27,8 @@ variable "stg_composer_sa_email" {
   description = "stg Composer SA のメール (sa-composer-stg) - prod erp_raw への ingress 許可用"
   type        = string
 }
+
+variable "github_actions_sa_email" {
+  description = "GitHub Actions SA のメール (sa-github-actions-prod) - Terraform apply 用"
+  type        = string
+}

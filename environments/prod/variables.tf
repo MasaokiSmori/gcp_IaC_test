@@ -35,6 +35,11 @@ variable "github_repo_url" {
   type        = string
 }
 
+variable "org_id" {
+  description = "GCP 組織 ID (GitHub Actions SA への VPC SC 権限付与に使用)"
+  type        = string
+}
+
 variable "access_policy_id" {
   description = "Access Context Manager ポリシー ID (数値のみ, 例: 1234567890)"
   type        = string
@@ -53,4 +58,10 @@ variable "erp_project_number" {
 variable "erp_sa_email" {
   description = "ERP プロジェクトで生データを prod GCS へアップロードする SA のメール"
   type        = string
+}
+
+variable "stg_project_id" {
+  description = "stg GCP Project ID - クロスプロジェクト IAM の SA メール生成に使用"
+  type        = string
+  default     = "erp-dataplatform-stg"
 }

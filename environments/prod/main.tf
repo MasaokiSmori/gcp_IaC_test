@@ -56,6 +56,7 @@ module "iam" {
   github_org       = var.github_org
   github_repo      = var.github_repo
   is_prod          = true
+  org_id           = var.org_id
 
   depends_on = [module.bigquery]
 }
@@ -99,8 +100,9 @@ module "vpc_sc" {
   prod_project_number    = var.prod_project_number
   erp_project_number     = var.erp_project_number
   erp_sa_email           = var.erp_sa_email
-  prod_composer_sa_email = module.iam.composer_sa_email
-  stg_composer_sa_email  = "sa-composer-stg@erp-dataplatform-stg.iam.gserviceaccount.com"
+  prod_composer_sa_email  = module.iam.composer_sa_email
+  stg_composer_sa_email   = "sa-composer-stg@${var.stg_project_id}.iam.gserviceaccount.com"
+  github_actions_sa_email = module.iam.github_actions_sa_email
 
   depends_on = [module.iam]
 }
@@ -114,5 +116,5 @@ resource "google_bigquery_dataset_iam_member" "stg_composer_read_prod_raw" {
   project    = var.project_id
   dataset_id = module.bigquery.erp_raw_dataset_id
   role       = "roles/bigquery.dataViewer"
-  member     = "serviceAccount:sa-composer-stg@erp-dataplatform-stg.iam.gserviceaccount.com"
+  member     = "serviceAccount:sa-composer-stg@${var.stg_project_id}.iam.gserviceaccount.com"
 }

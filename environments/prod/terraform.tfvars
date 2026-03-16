@@ -5,6 +5,7 @@ workspace_domain = "example.com" # TODO: 実際のドメインに変更するこ
 github_org       = "your-org"    # TODO: 実際の GitHub org に変更すること
 github_repo      = "your-repo"                                    # TODO: 実際のリポジトリ名に変更すること
 github_repo_url  = "https://github.com/your-org/your-repo.git"   # TODO: 実際の URL に変更すること
+org_id              = "000000000000"        # TODO: 実際の GCP 組織 ID に変更すること
 access_policy_id    = "000000000000"        # TODO: 実際の Access Context Manager Policy ID に変更すること
 prod_project_number = "000000000000"        # TODO: erp-dataplatform-prod のプロジェクト番号に変更すること
 erp_project_number  = "000000000000"        # TODO: ERP ソースプロジェクトのプロジェクト番号に変更すること

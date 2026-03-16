@@ -20,6 +20,32 @@ resource "google_access_context_manager_service_perimeter" "prod" {
     ]
 
     # ----------------------------------------------------------
+    # Ingress: GitHub Actions SA → prod (Terraform apply 用)
+    # GitHub Actions は VPC 外で動作するため、制限サービスへのアクセスを明示許可。
+    # state ファイル (GCS) の読み書き・BQ Dataset 管理が対象。
+    # ----------------------------------------------------------
+    ingress_policies {
+      ingress_from {
+        identities = ["serviceAccount:${var.github_actions_sa_email}"]
+      }
+      ingress_to {
+        resources = ["*"]
+        operations {
+          service_name = "storage.googleapis.com"
+          method_selectors {
+            method = "*"
+          }
+        }
+        operations {
+          service_name = "bigquery.googleapis.com"
+          method_selectors {
+            method = "*"
+          }
+        }
+      }
+    }
+
+    # ----------------------------------------------------------
     # Ingress: ERP SA → prod GCS (erp-ingest-raw-prod への生データ書き込み)
     # ERP チームが別プロジェクトから生データをアップロードするユースケース
     # ----------------------------------------------------------

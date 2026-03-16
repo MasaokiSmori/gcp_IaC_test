@@ -28,3 +28,9 @@ variable "is_prod" {
   type        = bool
   default     = false
 }
+
+variable "org_id" {
+  description = "GCP 組織 ID - GitHub Actions SA への VPC SC 管理権限付与に使用 (prod のみ)"
+  type        = string
+  default     = ""
+}

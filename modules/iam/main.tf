@@ -56,6 +56,15 @@ resource "google_project_iam_member" "github_actions_iam_admin" {
   member  = "serviceAccount:${google_service_account.github_actions.email}"
 }
 
+# VPC SC 境界の管理は org レベル権限が必要 (prod のみ)
+# roles/accesscontextmanager.policyAdmin はプロジェクト IAM では付与できないため org レベルで付与
+resource "google_organization_iam_member" "github_actions_vpc_sc_admin" {
+  count  = (var.is_prod && var.org_id != "") ? 1 : 0
+  org_id = var.org_id
+  role   = "roles/accesscontextmanager.policyAdmin"
+  member = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
 # =============================================================
 # Workload Identity Federation (WIF)
 # GitHub Actions がキーファイルなしに認証するためのプール
@@ -166,7 +175,9 @@ resource "google_project_iam_member" "vm_bastion_iap_tunnel" {
   member  = "group:g-datascience-snr@${var.workspace_domain}"
 }
 
+# Junior DS の IAP SSH は stg のみ (prod の vm-prod へのアクセスは Senior DS のみ)
 resource "google_project_iam_member" "vm_bastion_iap_tunnel_jnr" {
+  count   = var.is_prod ? 0 : 1
   project = var.project_id
   role    = "roles/iap.tunnelResourceAccessor"
   member  = "group:g-datascience-jnr@${var.workspace_domain}"

@@ -80,7 +80,7 @@ module "composer_stg" {
   network_id              = module.vpc.network_id
   subnet_id               = module.vpc.subnet_id
   composer_sa_email       = module.iam.composer_sa_email
-  enable_private_endpoint = true # stg: VPC 内 (IAP トンネル経由) からのみ Airflow UI にアクセス可
+  enable_private_endpoint = false # stg: Airflow Web UI へ直接アクセス可 (prod は true)
 }
 
 # =============================================================
