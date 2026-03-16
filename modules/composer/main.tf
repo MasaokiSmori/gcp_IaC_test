@@ -7,6 +7,22 @@ resource "google_composer_environment" "main" {
   config {
     software_config {
       image_version = var.airflow_image_version
+
+      # DAG 内で os.environ.get("PROJECT_ID") 等で取得し、prod/stg を意識せず共通コードで動かす
+      env_variables = {
+        "PROJECT_ID"      = var.project_id
+        "ERP_RAW_DATASET" = "erp_raw"
+        "ENV_TYPE"        = var.env # "prod" or "stg"
+      }
+
+      # PyPI パッケージ: DAG で BQ を扱うために必要な依存関係を一括管理
+      # db-dtypes は pandas 2.0+ で BigQuery データを pandas DataFrame に変換する際に必須。
+      # google-cloud-bigquery-storage は Arrow 形式での高速読み出しに使用。
+      pypi_packages = {
+        "pandas-gbq"                    = ">=0.20.0"
+        "google-cloud-bigquery-storage" = ">=2.24.0"
+        "db-dtypes"                     = ">=1.1.1"
+      }
     }
 
     # Small サイズ相当のリソース設定
