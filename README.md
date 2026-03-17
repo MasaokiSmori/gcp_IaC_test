@@ -39,8 +39,14 @@ VM 起動時に startup_script でリポジトリが `/opt/repo` に自動クロ
 # scripts/deploy_dags.sh (prod/stg 共通の処理概要)
 source /etc/environment   # COMPOSER_ENV_NAME を読み込む
 DAG_GCS_PREFIX=$(gcloud composer environments describe "${COMPOSER_ENV_NAME}" ...)
-gsutil -m rsync -r -d ./dags/ "${DAG_GCS_PREFIX}/"
+BUCKET_ROOT="${DAG_GCS_PREFIX%/dags}"
+
+gsutil -m rsync -r -d ./dags/    "${BUCKET_ROOT}/dags/"     # DAG 本体 (必須)
+gsutil -m rsync -r -d ./plugins/ "${BUCKET_ROOT}/plugins/"  # カスタム Operator 等 (存在時のみ)
+gsutil -m rsync -r -d ./data/    "${BUCKET_ROOT}/data/"     # SQL ファイル等 (存在時のみ)
 ```
+
+> **Composer GCS バケット構造**: Composer 3 のバケットは `dags/`, `plugins/`, `data/` の3パスを持つ。`deploy_dags.sh` はリポジトリ内に対応ディレクトリが存在する場合のみ同期する。リポジトリルート全体の同期は `.git/` や `terraform.tfvars` 等が漏洩するため行わない。
 
 ## 3. ディレクトリ構成
 ```
@@ -64,7 +70,9 @@ gcp/
 ├── environments/
 │   ├── prod/                 # 本番環境パラメータ
 │   └── stg/                  # 検証環境パラメータ (is_stg_active で composer-stg を制御)
-└── dags/                     # DAG ファイル管理ディレクトリ
+├── dags/                     # DAG ファイル (Composer の dags/ に同期)
+├── plugins/                  # カスタム Operator・Hook (Composer の plugins/ に同期、任意)
+└── data/                     # SQL ファイル等 DAG から参照するデータ (Composer の data/ に同期、任意)
 ```
 
 ## 4. ネットワーク設計 (Networking)
