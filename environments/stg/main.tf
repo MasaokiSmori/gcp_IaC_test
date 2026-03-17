@@ -61,13 +61,16 @@ module "iam" {
 # =============================================================
 # Monitoring (Composer 環境の健全性・DAG 失敗・スケジューラー監視)
 # NOTE: stg でも監視を有効化。composer-stg が存在しない場合、
-#       メトリクスが発生しないためアラートは発火しない。
+#       condition_threshold 系アラートはメトリクス不在のため発火しない。
+#       condition_absent (scheduler_heartbeat) は逆に発火するため、
+#       composer_always_on=false で作成を抑制する。
 # =============================================================
 module "monitoring" {
-  source           = "../../modules/monitoring"
-  project_id       = var.project_id
-  env              = "stg"
-  workspace_domain = var.workspace_domain
+  source             = "../../modules/monitoring"
+  project_id         = var.project_id
+  env                = "stg"
+  workspace_domain   = var.workspace_domain
+  composer_always_on = false
 }
 
 # =============================================================

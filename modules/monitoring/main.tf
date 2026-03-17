@@ -112,8 +112,13 @@ resource "google_monitoring_alert_policy" "composer_worker_eviction" {
 # ----------------------------------------------------------
 # Composer スケジューラーのハートビート監視
 # スケジューラーが応答しなくなった場合に通知
+#
+# NOTE: condition_absent はメトリクスの「不在」を検知するため、
+#       Composer が存在しない stg 環境では常に発火してしまう。
+#       composer_always_on=false (stg) の場合はこのアラートを作成しない。
 # ----------------------------------------------------------
 resource "google_monitoring_alert_policy" "scheduler_heartbeat" {
+  count        = var.composer_always_on ? 1 : 0
   project      = var.project_id
   display_name = "Composer Scheduler Heartbeat Missing (${var.env})"
   combiner     = "OR"
