@@ -33,7 +33,8 @@ DAGファイルの本番・stg反映は、VMにSSH接続して `scripts/deploy_d
 同期先 Composer 環境名は VM 起動時に Terraform が設定した `COMPOSER_ENV_NAME` 環境変数で切り替える。
 `DAG_GCS_PREFIX` は gcloud CLI で動的に取得するため、Terraform 適用時点で Composer が存在しなくても問題ない。
 
-VM 起動時に startup_script でリポジトリが `/opt/repo` に自動クローンされるため、初回接続後すぐに作業を開始できる。
+VM 起動時に startup_script でリポジトリが `/opt/repo` に SSH で自動クローンされるため、初回接続後すぐに作業を開始できる。
+SSH deploy key は Secret Manager (`github-deploy-key`) から毎起動時に取得され、キーローテーションにも対応する。
 
 ```bash
 # scripts/deploy_dags.sh (prod/stg 共通の処理概要)
@@ -41,9 +42,9 @@ source /etc/environment   # COMPOSER_ENV_NAME を読み込む
 DAG_GCS_PREFIX=$(gcloud composer environments describe "${COMPOSER_ENV_NAME}" ...)
 BUCKET_ROOT="${DAG_GCS_PREFIX%/dags}"
 
-gsutil -m rsync -r -d ./dags/    "${BUCKET_ROOT}/dags/"     # DAG 本体 (必須)
-gsutil -m rsync -r -d ./plugins/ "${BUCKET_ROOT}/plugins/"  # カスタム Operator 等 (存在時のみ)
-gsutil -m rsync -r -d ./data/    "${BUCKET_ROOT}/data/"     # SQL ファイル等 (存在時のみ)
+gcloud storage rsync ./dags/    "${BUCKET_ROOT}/dags/"     --recursive --delete-unmatched-destination-objects  # DAG 本体 (必須)
+gcloud storage rsync ./plugins/ "${BUCKET_ROOT}/plugins/"  --recursive --delete-unmatched-destination-objects  # カスタム Operator 等 (存在時のみ)
+gcloud storage rsync ./data/    "${BUCKET_ROOT}/data/"     --recursive --delete-unmatched-destination-objects  # SQL ファイル等 (存在時のみ)
 ```
 
 > **Composer GCS バケット構造**: Composer 3 のバケットは `dags/`, `plugins/`, `data/` の3パスを持つ。`deploy_dags.sh` はリポジトリ内に対応ディレクトリが存在する場合のみ同期する。リポジトリルート全体の同期は `.git/` や `terraform.tfvars` 等が漏洩するため行わない。
@@ -121,7 +122,7 @@ gcp/
 * **プロジェクトレベルの広範ロール (`roles/editor` 等) は使用しない。** 必要なリソースタイプに対応する個別ロールを組み合わせて付与する。
 * **GCS 権限はバケットレベルで付与する。** プロジェクト全バケットへの `storage.objectAdmin` は付与しない。
 * **BigQuery 権限はデータセットレベルで付与する。** Composer SA には各データセット (`erp_raw`, `erp_stg`, `erp_mart`) に対して個別に `dataEditor` を設定し、意図しないデータセットへの書き込みを防ぐ。
-* **VPC SC のメソッド制限は読み取りメソッドのみを明示許可する。** `method = "*"` は使用しない。
+* **VPC SC のメソッド制限は読み取りメソッドのみを明示許可する。** ただし GitHub Actions SA の ingress は terraform apply で全リソースの CRUD が必要なため `method = "*"` を許可する（WIF のリポジトリスコープ + `refs/heads/main` 限定で認証済みであるため許容）。
 
 ### 6.2 ユーザーロール
 ユーザー管理は Google Workspace のグループアカウントで行う。
@@ -129,23 +130,26 @@ gcp/
 | ロール | Google Workspace グループ | Prod権限 | Stg権限 |
 |--------|--------------------------|----------|---------|
 | Senior DS | g-datascience-snr@[workspace-domain] | BigQuery Admin, IAP SSH (vm-prod) | Owner 相当, IAP SSH (vm-stg) |
-| Junior DS | g-datascience-jnr@[workspace-domain] | BQ Data Viewer, Job User, prod_test Dataset編集 | Editor 相当, IAP SSH (vm-stg) |
+| Junior DS | g-datascience-jnr@[workspace-domain] | BQ Data Viewer, Job User, prod_test Dataset編集 | BQ Admin, Storage Admin, Viewer, IAP SSH (vm-stg) ※terraform-state は deny policy で拒否 |
 
 > **IAP SSH アクセスについて**: Junior DS は stg VM へのSSH のみ許可。prod VM（vm-prod）へのアクセスは Senior DS に限定する。
+
+> **stg 環境の Junior DS 権限設計**: Junior DS には stg で BQ・GCS を自由に操作できる権限 (`bigquery.admin`, `storage.admin`) を付与する。ただし Terraform state バケット (`terraform-state-stg`) への全アクセスは **IAM deny policy** でピンポイントに拒否する。これにより、自分専用のバケット作成やデータ投入などの自由な検証を許容しつつ、インフラ状態の改ざんを防ぐ。
 
 ### 6.3 Service Accounts
 | SA | 権限 |
 |----|------|
 | sa-composer-prod-runner | **データセットレベル** BQ dataEditor (erp_raw, erp_stg, erp_mart) ＋ プロジェクトレベル BQ jobUser ＋ **バケットレベル** GCS objectAdmin (erp-ingest-raw-prod) |
 | sa-composer-stg | **データセットレベル** BQ dataEditor (erp_raw, erp_stg, erp_mart) ＋ プロジェクトレベル BQ jobUser ＋ **バケットレベル** GCS objectAdmin (erp-ingest-raw-stg) ＋ **prod の erp_raw Dataset への読み取り権限** |
-| sa-vm-prod | **バケットレベル** Composer DAG バケットへの objectAdmin |
-| sa-vm-stg | **バケットレベル** GCS objectAdmin (Composer DAG バケット) ＋ `roles/composer.admin` ＋ `roles/iam.serviceAccountUser` (on sa-composer-stg) ＋ `roles/viewer` (Terraform refresh 用) |
-| sa-github-actions-[env] | `roles/compute.admin` ＋ `roles/composer.admin` ＋ `roles/storage.admin` ＋ `roles/bigquery.admin` ＋ `roles/iam.serviceAccountAdmin` ＋ `roles/resourcemanager.projectIamAdmin` ＋ (prodのみ) `roles/accesscontextmanager.policyAdmin` (org レベル) |
+| sa-vm-prod | **バケットレベル** Composer DAG バケットへの objectAdmin ＋ Secret Manager `github-deploy-key` の secretAccessor |
+| sa-vm-stg | **バケットレベル** GCS objectAdmin (Composer DAG バケット) ＋ `roles/composer.admin` ＋ `roles/iam.serviceAccountUser` (on sa-composer-stg) ＋ `roles/viewer` (Terraform refresh 用) ＋ Secret Manager `github-deploy-key` の secretAccessor |
+| sa-github-actions-[env] | `roles/compute.admin` ＋ `roles/composer.admin` ＋ `roles/storage.admin` ＋ `roles/bigquery.admin` ＋ `roles/iam.serviceAccountAdmin` ＋ `roles/resourcemanager.projectIamAdmin` ＋ `roles/secretmanager.admin` ＋ (prodのみ) `roles/accesscontextmanager.policyAdmin` (org レベル) |
 
 ### 6.4 Terraform State へのアクセス制限
 * **prod-state**: 人間は直接アクセス不可。WIF経由のTerraform SAのみ書き込み可。
 * **stg-state**: 基本はprod-stateと同じ制限。Senior DSグループには読み取り専用権限を付与（デバッグ用途）。
   * **sa-vm-stg も stg-state への書き込みを許可する**（vm-stg 上での terraform apply のため）。
+  * **Junior DS は IAM deny policy により stg-state への全アクセスを拒否する。** `roles/storage.admin` がプロジェクト全バケットに及ぶため、tfstate バケットのみ deny policy で保護する。
 
 > **Terraform State バケットの手動作成時の注意:**
 > 必ず `--enable-versioning` を指定すること。State 破損時のロールバックに必須。
@@ -161,6 +165,27 @@ gcp/
 * Workload Identity Federation (WIF): リポジトリ単位で GitHub Actions 専用のプールを作成し、JSONキーファイルを使わずにデプロイを行う。
   * スコープ: 本リポジトリ (`refs/heads/main` へのマージ時のみ apply を許可）。
 * VM へのSSH: `gcloud compute ssh [vm-name] --tunnel-through-iap` を使用。公開鍵認証を前提とし、パスワード認証は無効化。
+* VM → GitHub (git clone/pull): SSH deploy key を使用。キーは Secret Manager に格納し、VM 起動時に自動取得する。
+  * シークレット名: `github-deploy-key` (各環境の Secret Manager に手動作成)
+  * VM SA にシークレットレベルで `secretAccessor` を付与 (`modules/vm_bastion` 内で自動設定)
+  * `git config --system core.sshCommand` により全ユーザーが deploy key を共有
+
+> **Secret Manager の手動セットアップ:**
+> 各環境で初回 `terraform apply` の前に、以下の手順でシークレットを作成すること。
+> ```bash
+> # 1. シークレットを作成
+> gcloud secrets create github-deploy-key \
+>   --project=erp-dataplatform-[env] \
+>   --replication-policy=user-managed \
+>   --locations=asia-northeast1
+>
+> # 2. SSH 秘密鍵をシークレットに登録
+> gcloud secrets versions add github-deploy-key \
+>   --project=erp-dataplatform-[env] \
+>   --data-file=/path/to/deploy_key
+>
+> # 3. 対応する公開鍵を GitHub Enterprise のリポジトリ Deploy Keys に登録 (Read-only)
+> ```
 
 ### 6.6 VPC SC 適用に必要な初期情報
 `environments/prod/terraform.tfvars` に以下の値を設定すること。

@@ -72,6 +72,13 @@ resource "google_project_iam_member" "github_actions_monitoring_admin" {
   member  = "serviceAccount:${google_service_account.github_actions.email}"
 }
 
+# Secret Manager: VM の deploy key IAM バインディングを Terraform で管理するために必要
+resource "google_project_iam_member" "github_actions_secretmanager_admin" {
+  project = var.project_id
+  role    = "roles/secretmanager.admin"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
 # Terraform が IAM バインディングを管理するための権限
 resource "google_project_iam_member" "github_actions_iam_admin" {
   project = var.project_id
@@ -153,12 +160,62 @@ resource "google_project_iam_member" "junior_ds_bq_job_user" {
   member  = "group:g-datascience-jnr@${var.workspace_domain}"
 }
 
-# stg のみ: Junior DS に Editor 権限
-resource "google_project_iam_member" "junior_ds_stg_editor" {
+# stg のみ: Junior DS に BQ / GCS の自由な操作権限を付与
+# roles/editor は tfstate バケットを含む全リソースに及ぶため使用しない。
+# 代わりに BQ admin + Storage admin を付与し、tfstate は deny policy で保護する。
+resource "google_project_iam_member" "junior_ds_stg_bq_admin" {
   count   = var.is_prod ? 0 : 1
   project = var.project_id
-  role    = "roles/editor"
+  role    = "roles/bigquery.admin"
   member  = "group:g-datascience-jnr@${var.workspace_domain}"
+}
+
+resource "google_project_iam_member" "junior_ds_stg_storage_admin" {
+  count   = var.is_prod ? 0 : 1
+  project = var.project_id
+  role    = "roles/storage.admin"
+  member  = "group:g-datascience-jnr@${var.workspace_domain}"
+}
+
+resource "google_project_iam_member" "junior_ds_stg_viewer" {
+  count   = var.is_prod ? 0 : 1
+  project = var.project_id
+  role    = "roles/viewer"
+  member  = "group:g-datascience-jnr@${var.workspace_domain}"
+}
+
+# =============================================================
+# IAM Deny Policy: Junior DS の terraform-state バケットへのアクセスを拒否
+# roles/storage.admin はプロジェクト全バケットに及ぶため、
+# tfstate バケットのみ deny policy でピンポイントに保護する。
+# =============================================================
+resource "google_iam_deny_policy" "deny_junior_ds_tfstate" {
+  count        = var.is_prod ? 0 : 1
+  parent       = urlencode("cloudresourcemanager.googleapis.com/projects/${var.project_id}")
+  name         = "deny-junior-ds-tfstate"
+  display_name = "Deny Junior DS access to terraform-state bucket"
+
+  rules {
+    deny_rule {
+      denied_principals = [
+        "principalSet://goog/group/g-datascience-jnr@${var.workspace_domain}"
+      ]
+      denied_permissions = [
+        "storage.googleapis.com/objects.get",
+        "storage.googleapis.com/objects.list",
+        "storage.googleapis.com/objects.create",
+        "storage.googleapis.com/objects.delete",
+        "storage.googleapis.com/objects.update",
+        "storage.googleapis.com/buckets.get",
+        "storage.googleapis.com/buckets.delete",
+        "storage.googleapis.com/buckets.update",
+      ]
+      denial_condition {
+        title      = "terraform-state bucket only"
+        expression = "resource.name.startsWith(\"projects/_/buckets/terraform-state-${var.env}\")"
+      }
+    }
+  }
 }
 
 # prod のみ: Junior DS に prod_test Dataset の編集権限

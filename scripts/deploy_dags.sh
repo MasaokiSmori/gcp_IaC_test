@@ -39,18 +39,18 @@ echo "▶ バケットルート: ${BUCKET_ROOT}"
 
 # dags/ — DAG 本体 (必須)
 echo "▶ 同期中: ./dags/ → ${BUCKET_ROOT}/dags/"
-gsutil -m rsync -r -d ./dags/ "${BUCKET_ROOT}/dags/"
+gcloud storage rsync ./dags/ "${BUCKET_ROOT}/dags/" --recursive --delete-unmatched-destination-objects
 
 # plugins/ — カスタム Operator・Hook 等 (存在する場合のみ)
 if [[ -d ./plugins ]]; then
   echo "▶ 同期中: ./plugins/ → ${BUCKET_ROOT}/plugins/"
-  gsutil -m rsync -r -d ./plugins/ "${BUCKET_ROOT}/plugins/"
+  gcloud storage rsync ./plugins/ "${BUCKET_ROOT}/plugins/" --recursive --delete-unmatched-destination-objects
 fi
 
 # data/ — SQL ファイル等 DAG から参照するデータ (存在する場合のみ)
 if [[ -d ./data ]]; then
   echo "▶ 同期中: ./data/ → ${BUCKET_ROOT}/data/"
-  gsutil -m rsync -r -d ./data/ "${BUCKET_ROOT}/data/"
+  gcloud storage rsync ./data/ "${BUCKET_ROOT}/data/" --recursive --delete-unmatched-destination-objects
 fi
 
 echo "✓ デプロイ完了: $(date)"

@@ -42,6 +42,13 @@ resource "google_compute_instance" "bastion" {
     grep -qxF 'COMPOSER_ENV_NAME=${var.composer_env_name}' /etc/environment \
       || echo 'COMPOSER_ENV_NAME=${var.composer_env_name}' >> /etc/environment
 
+    # SSH deploy key を Secret Manager から取得 (毎起動時に更新 — キーローテーション対応)
+    gcloud secrets versions access latest \
+      --secret="${var.deploy_key_secret_name}" \
+      --project="${var.project_id}" \
+      > /opt/deploy_key
+    chmod 600 /opt/deploy_key
+
     # 初回プロビジョニング済みならパッケージインストールをスキップ
     if [ ! -f "$MARKER" ]; then
       # git と Google Cloud SDK のインストール
@@ -56,6 +63,9 @@ resource "google_compute_instance" "bastion" {
         > /etc/apt/sources.list.d/hashicorp.list
       apt-get update -q && apt-get install -y terraform=${var.terraform_version}-1
 
+      # 全ユーザーが git clone/pull で deploy key を使えるようにする
+      git config --system core.sshCommand "ssh -i /opt/deploy_key -o StrictHostKeyChecking=accept-new"
+
       touch "$MARKER"
     fi
 
@@ -66,6 +76,14 @@ resource "google_compute_instance" "bastion" {
       chmod -R 775 "$REPO_DIR"
     fi
   EOT
+}
+
+# VM SA が Secret Manager から deploy key を読み取るための権限
+resource "google_secret_manager_secret_iam_member" "deploy_key_accessor" {
+  project   = var.project_id
+  secret_id = var.deploy_key_secret_name
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${var.service_account_email}"
 }
 
 # IAP SSH を許可するファイアウォールルール

@@ -2,7 +2,8 @@
 # gcloud storage buckets create gs://terraform-state-prod \
 #   --project=erp-dataplatform-prod \
 #   --location=asia-northeast1 \
-#   --uniform-bucket-level-access
+#   --uniform-bucket-level-access \
+#   --enable-versioning
 terraform {
   backend "gcs" {
     bucket = "terraform-state-prod"

@@ -109,8 +109,9 @@ module "vm_stg" {
   network_name          = module.vpc.network_name
   subnet_id             = module.vpc.subnet_id
   service_account_email = module.iam.vm_bastion_sa_email
-  composer_env_name     = "composer-stg"
-  github_repo_url       = var.github_repo_url
+  composer_env_name      = "composer-stg"
+  github_repo_url        = var.github_repo_url
+  deploy_key_secret_name = var.deploy_key_secret_name
 }
 
 # =============================================================

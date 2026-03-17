@@ -58,7 +58,7 @@ resource "google_monitoring_alert_policy" "dag_failure" {
     display_name = "DAG run failed"
 
     condition_threshold {
-      filter          = "resource.type = \"cloud_composer_environment\" AND metric.type = \"composer.googleapis.com/environment/dagbag_size\" AND metric.labels.state = \"failed\""
+      filter          = "resource.type = \"cloud_composer_environment\" AND metric.type = \"composer.googleapis.com/environment/finished_task_instance_count\" AND metric.labels.state = \"failed\""
       comparison      = "COMPARISON_GT"
       threshold_value = 0
       duration        = "0s"

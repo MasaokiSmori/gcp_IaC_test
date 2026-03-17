@@ -31,8 +31,14 @@ variable "github_repo" {
 }
 
 variable "github_repo_url" {
-  description = "git clone に使用する GitHub リポジトリの HTTPS URL (例: https://github.com/org/repo.git)"
+  description = "git clone に使用する GitHub リポジトリの SSH URL (例: git@github.example.com:org/repo.git)"
   type        = string
+}
+
+variable "deploy_key_secret_name" {
+  description = "SSH deploy key を格納した Secret Manager シークレット名"
+  type        = string
+  default     = "github-deploy-key"
 }
 
 variable "org_id" {
