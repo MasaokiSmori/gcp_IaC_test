@@ -13,5 +13,6 @@ cd "$(dirname "$0")/../environments/stg"
 terraform init -reconfigure
 terraform apply \
   -target=module.composer_stg \
+  -target=google_storage_bucket_iam_member.vm_bastion_composer_dag_bucket \
   -var="is_stg_active=false" \
   -auto-approve

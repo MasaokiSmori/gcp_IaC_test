@@ -33,10 +33,24 @@ DAG_GCS_PREFIX=$(gcloud composer environments describe "${COMPOSER_ENV_NAME}" \
   --project="${PROJECT_ID}" \
   --format="value(config.dagGcsPrefix)")
 
-echo "▶ 同期先: ${DAG_GCS_PREFIX}/"
-echo "▶ 同期元: ./dags/"
+BUCKET_ROOT="${DAG_GCS_PREFIX%/dags}"
 
-# --delete フラグにより、リポジトリから削除された DAG はバケットからも削除される
-gsutil -m rsync -r -d ./dags/ "${DAG_GCS_PREFIX}/"
+echo "▶ バケットルート: ${BUCKET_ROOT}"
+
+# dags/ — DAG 本体 (必須)
+echo "▶ 同期中: ./dags/ → ${BUCKET_ROOT}/dags/"
+gsutil -m rsync -r -d ./dags/ "${BUCKET_ROOT}/dags/"
+
+# plugins/ — カスタム Operator・Hook 等 (存在する場合のみ)
+if [[ -d ./plugins ]]; then
+  echo "▶ 同期中: ./plugins/ → ${BUCKET_ROOT}/plugins/"
+  gsutil -m rsync -r -d ./plugins/ "${BUCKET_ROOT}/plugins/"
+fi
+
+# data/ — SQL ファイル等 DAG から参照するデータ (存在する場合のみ)
+if [[ -d ./data ]]; then
+  echo "▶ 同期中: ./data/ → ${BUCKET_ROOT}/data/"
+  gsutil -m rsync -r -d ./data/ "${BUCKET_ROOT}/data/"
+fi
 
 echo "✓ デプロイ完了: $(date)"

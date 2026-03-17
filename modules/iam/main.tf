@@ -66,6 +66,12 @@ resource "google_project_iam_member" "github_actions_service_account_admin" {
   member  = "serviceAccount:${google_service_account.github_actions.email}"
 }
 
+resource "google_project_iam_member" "github_actions_monitoring_admin" {
+  project = var.project_id
+  role    = "roles/monitoring.admin"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
 # Terraform が IAM バインディングを管理するための権限
 resource "google_project_iam_member" "github_actions_iam_admin" {
   project = var.project_id
