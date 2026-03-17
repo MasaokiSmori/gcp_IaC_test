@@ -74,6 +74,11 @@ module "composer_prod_runner" {
   subnet_id               = module.vpc.subnet_id
   composer_sa_email       = module.iam.composer_sa_email
   enable_private_endpoint = true # prod: VPC 内からのみ Airflow UI にアクセス可
+
+  # composer_sa_email の暗黙的依存は SA リソースのみに及ぶ。
+  # IAM バインディング (bigquery.jobUser 等) の完了を保証するために
+  # module.iam 全体への明示的依存が必要。
+  depends_on = [module.iam]
 }
 
 # =============================================================

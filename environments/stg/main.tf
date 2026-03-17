@@ -83,6 +83,12 @@ module "monitoring" {
 # DS が vm-stg 上で以下を実行してライフサイクルを管理する:
 #   作成: terraform apply -target=module.composer_stg -var="is_stg_active=true"
 #   削除: terraform apply -target=module.composer_stg -var="is_stg_active=false"
+#
+# NOTE: depends_on = [module.iam] は意図的に設定していない。
+#   -target 使用時に module.iam が依存に含まれると、IAM drift 検出時に
+#   sa-vm-stg の権限不足で apply 全体が失敗するため。
+#   前提: module.iam は CI/CD で事前に apply 済みであること。
+#   composer-stg 作成に失敗する場合は、先に CI/CD を実行して IAM を最新化すること。
 # =============================================================
 module "composer_stg" {
   count = var.is_stg_active ? 1 : 0
